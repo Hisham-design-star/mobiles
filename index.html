@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mobiles Pi Store - جارٍ التحقق</title>
+    <title>Mobiles Pi Store - تأمين الاتصال</title>
     <script src="https://sdk.minepi.com/pi-sdk.js"></script>
     <style>
         body { 
@@ -34,35 +34,37 @@
     <p id="status" class="status-text">جاري تأمين اتصالك بشبكة باي...</p>
 
     <script>
-        // 1. تهيئة المكتبة (تأكد من استخدام sandbox: true للتجربة)
+        // تهيئة المكتبة
         Pi.init({ version: "2.0", sandbox: true });
 
         async function authenticateAndRedirect() {
             const statusElement = document.getElementById('status');
             
             try {
-                // 2. طلب المصادقة من المستخدم (يجب فتحه من Pi Browser)
-                const auth = await Pi.authenticate(['username', 'payments'], onIncompletePaymentFound);
+                // طلب المصادقة مع الصلاحيات المطلوبة
+                const auth = await Pi.authenticate(['username', 'payments', 'wallet_address'], onIncompletePaymentFound);
                 
-                // 3. عند نجاح الربط، يتم التحويل فوراً إلى متجر Carrd
+                // حفظ بيانات المستخدم مؤقتاً لضمان سلاسة الدفع لاحقاً
+                console.log("Authenticated User: ", auth.user.username);
+                
                 statusElement.innerText = "تم التحقق بنجاح! جاري نقلك للمتجر...";
+                
+                // التحويل إلى Carrd مع إضافة علامة نجاح التحقق في الرابط
                 setTimeout(() => {
-                    window.location.href = "https://mobiles-pi-store.carrd.co/";
+                    window.location.href = "https://mobiles-pi-store.carrd.co/?auth=success";
                 }, 1500);
 
             } catch (err) {
-                // في حال فشل الربط أو فتح الموقع من متصفح عادي
                 statusElement.innerText = "يرجى فتح الموقع من داخل تطبيق Pi Browser للمتابعة.";
                 console.error(err);
             }
         }
 
-        // دالة ضرورية للتعامل مع أي عمليات دفع معلقة
         function onIncompletePaymentFound(payment) {
+            // التعامل مع أي عملية دفع لم تكتمل سابقاً
             console.log("Incomplete payment found", payment);
         };
 
-        // تشغيل الدالة فور تحميل الصفحة
         window.onload = authenticateAndRedirect;
     </script>
 </body>

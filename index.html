@@ -13,6 +13,7 @@
             font-family: Arial, sans-serif; 
             padding: 50px 20px;
             margin: 0;
+            overflow-x: hidden;
         }
         .loader { 
             border: 5px solid #f3f3f3; 
@@ -24,9 +25,9 @@
             margin: 20px auto; 
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .status-text { font-size: 1.2rem; margin-top: 20px; }
+        .status-text { font-size: 1.2rem; margin-top: 20px; padding: 0 10px; }
         .payment-box {
-            display: none; /* مخفي حتى تكتمل المصادقة */
+            display: none; 
             background: rgba(255, 255, 255, 0.1);
             padding: 20px;
             border-radius: 15px;
@@ -43,71 +44,80 @@
             font-size: 1.1rem;
             cursor: pointer;
             margin-top: 15px;
+            width: 100%;
+            max-width: 250px;
         }
+        #error-log { color: #ff5555; font-size: 0.9rem; margin-top: 15px; }
     </style>
 </head>
 <body>
 
     <h1>مرحباً بك في سوق الهواتف الآمن</h1>
+    
     <div id="loading-section">
         <div class="loader"></div>
-        <p id="status" class="status-text">جاري تأمين اتصالك بشبكة باي...</p>
+        <p id="status" class="status-text">جاري الاتصال بـ Pi Browser...</p>
+        <div id="error-log"></div>
     </div>
 
     <div id="payment-section" class="payment-box">
-        <h3>اختبار الدفع التجريبي (Testnet)</h3>
-        <p>لإتمام إعداد تطبيقك، يرجى إجراء معاملة تجريبية بقيمة 1 Pi</p>
-        <button id="pay-button">إجراء معاملة تجريبية الآن</button>
+        <h3>مرحباً <span id="user-name"></span></h3>
+        <p>لإكمال تفعيل تطبيقك، يرجى إجراء عملية الدفع التجريبية</p>
+        <button id="pay-button">إرسال 1 Pi (Testnet)</button>
     </div>
 
     <script>
-        // ملاحظة: تم ضبط sandbox على true لأغراض الاختبار (Testnet)
-        Pi.init({ version: "2.0", sandbox: true });
+        // التحقق من وجود المكتبة
+        const statusElement = document.getElementById('status');
+        const errorLog = document.getElementById('error-log');
 
-        async function authenticateUser() {
-            const statusElement = document.getElementById('status');
-            const paymentSection = document.getElementById('payment-section');
-            const loadingSection = document.getElementById('loading-section');
-            
+        async function initPi() {
             try {
-                // 1. المصادقة
-                const auth = await Pi.authenticate(['username', 'payments', 'wallet_address'], onIncompletePaymentFound);
-                console.log("Authenticated User: ", auth.user.username);
+                if (typeof Pi === 'undefined') {
+                    throw new Error("لم يتم تحميل مكتبة Pi. تأكد من فتح الموقع داخل Pi Browser.");
+                }
+
+                // 1. تهيئة المكتبة
+                await Pi.init({ version: "2.0", sandbox: true });
+                statusElement.innerText = "جاري التحقق من الهوية...";
+
+                // 2. طلب المصادقة (إصلاح طريقة استدعاء الصلاحيات)
+                const scopes = ['username', 'payments', 'wallet_address'];
+                const auth = await Pi.authenticate(scopes, onIncompletePaymentFound);
                 
-                statusElement.innerText = "تم التحقق بنجاح!";
-                
-                // 2. إظهار قسم الدفع لإجراء المعاملة التجريبية
-                loadingSection.style.display = "none";
-                paymentSection.style.display = "block";
+                // إذا نجح التحقق
+                document.getElementById('user-name').innerText = auth.user.username;
+                document.getElementById('loading-section').style.display = "none";
+                document.getElementById('payment-section').style.display = "block";
 
             } catch (err) {
-                statusElement.innerText = "يرجى فتح الموقع من داخل تطبيق Pi Browser للمتابعة.";
+                statusElement.innerText = "توقف الاتصال";
+                errorLog.innerText = "السبب: " + err.message;
                 console.error(err);
             }
         }
 
-        // 3. دالة إجراء المعاملة (التي ستحقق لك شرط Process a Transaction)
+        // 3. دالة الدفع (المُصلحة)
         document.getElementById('pay-button').onclick = async function() {
             try {
                 const payment = await Pi.createPayment({
                     amount: 1.0,
-                    memo: "اختبار دفع تجريبي - متجر هواتف باي",
-                    metadata: { orderId: "test_order_101" },
+                    memo: "اختبار دفع - mobiles.pi",
+                    metadata: { orderId: "test_" + Date.now() },
                 }, {
                     onReadyForServerApproval: (paymentId) => {
-                        console.log("بانتظار موافقة الخادم. المعرف:", paymentId);
-                        // في هذه المرحلة البسيطة، ستحتاج للموافقة يدوياً من Developer Portal أو إعداد خادم لاحقاً
+                        console.log("بانتظار الموافقة اليدوية من Developer Portal:", paymentId);
+                        alert("المعاملة بدأت! يرجى الموافقة عليها من لوحة المطورين لتكتمل.");
                     },
                     onReadyForServerCompletion: (paymentId, txid) => {
-                        alert("نجحت المعاملة! رقم العملية: " + txid);
-                        // بعد النجاح، يمكنك توجيه المستخدم لمتجر Carrd
+                        alert("نجحت المعاملة! سيتم تحويلك الآن للمتجر.");
                         window.location.href = "https://mobiles-pi-store.carrd.com/?auth=success";
                     },
-                    onCancel: (paymentId) => { alert("تم إلغاء المعاملة."); },
+                    onCancel: (paymentId) => { alert("تم إلغاء الدفع."); },
                     onError: (error, payment) => { alert("خطأ في الدفع: " + error.message); },
                 });
             } catch (err) {
-                console.error("Payment Error:", err);
+                alert("فشل إنشاء الدفع: " + err.message);
             }
         };
 
@@ -115,7 +125,8 @@
             console.log("Incomplete payment found", payment);
         };
 
-        window.onload = authenticateUser;
+        // تشغيل الوظيفة عند التحميل
+        window.onload = initPi;
     </script>
 </body>
 </html>

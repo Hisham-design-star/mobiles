@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>تأكيد عملية الدفع - Mobiles Pi</title>
+    <script src="https://sdk.mine.pi/pi-sdk.js"></script>
+    <style>
+        body { background-color: #6700eb; color: white; text-align: center; font-family: Arial, sans-serif; padding: 40px; }
+        .pay-card { background: white; color: #333; border-radius: 20px; padding: 30px; max-width: 400px; margin: auto; }
+        .btn-confirm { background: #00e676; color: white; border: none; padding: 15px 30px; border-radius: 10px; font-weight: bold; cursor: pointer; width: 100%; font-size: 1.2rem; }
+    </style>
+</head>
+<body>
+    <div class="pay-card">
+        <h2>تأكيد الطلب</h2>
+        <p>أنت على وشك شراء هاتف ذكي</p>
+        <h1 id="amount-display">جاري التحميل...</h1>
+        <button id="pay-button" class="btn-confirm">دفع الآن بواسطة Pi</button>
+        <p style="color: #666; font-size: 0.8rem; margin-top: 15px;">يرجى عدم إغلاق الصفحة أثناء المعالجة.</p>
+    </div>
+
+    <script>
+        // قراءة السعر من الرابط القادم من Carrd
+        const urlParams = new URLSearchParams(window.location.search);
+        const price = urlParams.get('price') || '1.0';
+        document.getElementById('amount-display').innerText = price + " Pi";
+
+        async function initPayment() {
+            try {
+                await Pi.init({ version: "2.0", sandbox: false });
+                
+                document.getElementById('pay-button').onclick = async () => {
+                    const payment = await Pi.createPayment({
+                        amount: parseFloat(price),
+                        memo: "شراء هاتف من Mobiles Pi Store",
+                        metadata: { orderId: "order_" + Date.now() },
+                    }, {
+                        onReadyForServerApproval: (id) => console.log("Approved", id),
+                        onReadyForServerCompletion: (id, txid) => {
+                            alert("تم الدفع بنجاح!");
+                            window.location.href = "https://mobiles-pi-store.carrd.co/#success";
+                        },
+                        onCancel: (id) => alert("تم إلغاء العملية"),
+                        onError: (error) => alert("خطأ: " + error.message),
+                    });
+                };
+            } catch (err) {
+                alert("تأكد من فتح الرابط داخل Pi Browser");
+            }
+        }
+        window.onload = initPayment;
+    </script>
+</body>
+</html>

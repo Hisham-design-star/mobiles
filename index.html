@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mobiles Pi Store - تأمين واختبار الدفع</title>
+    <title>Mobiles Pi Store - تأمين الاتصال</title>
     <script src="https://sdk.mine.pi/pi-sdk.js"></script>
     <style>
         body { 
@@ -11,9 +11,8 @@
             color: white; 
             text-align: center; 
             font-family: Arial, sans-serif; 
-            padding: 50px 20px;
+            padding-top: 100px;
             margin: 0;
-            overflow-x: hidden;
         }
         .loader { 
             border: 5px solid #f3f3f3; 
@@ -25,108 +24,42 @@
             margin: 20px auto; 
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .status-text { font-size: 1.2rem; margin-top: 20px; padding: 0 10px; }
-        .payment-box {
-            display: none; 
-            background: rgba(255, 255, 255, 0.1);
-            padding: 20px;
-            border-radius: 15px;
-            margin-top: 30px;
-            border: 1px solid #ffcc00;
-        }
-        button {
-            background-color: #ffcc00;
-            color: #6700eb;
-            border: none;
-            padding: 15px 30px;
-            border-radius: 25px;
-            font-weight: bold;
-            font-size: 1.1rem;
-            cursor: pointer;
-            margin-top: 15px;
-            width: 100%;
-            max-width: 250px;
-        }
-        #error-log { color: #ff5555; font-size: 0.9rem; margin-top: 15px; }
+        .status-text { font-size: 1.2rem; margin-top: 20px; }
     </style>
 </head>
 <body>
 
     <h1>مرحباً بك في سوق الهواتف الآمن</h1>
-    
-    <div id="loading-section">
-        <div class="loader"></div>
-        <p id="status" class="status-text">جاري الاتصال بـ Pi Browser...</p>
-        <div id="error-log"></div>
-    </div>
-
-    <div id="payment-section" class="payment-box">
-        <h3>مرحباً <span id="user-name"></span></h3>
-        <p>لإكمال تفعيل تطبيقك، يرجى إجراء عملية الدفع التجريبية</p>
-        <button id="pay-button">إرسال 1 Pi (Testnet)</button>
-    </div>
+    <div class="loader"></div>
+    <p id="status" class="status-text">جاري تأمين اتصالك بشبكة باي...</p>
 
     <script>
-        // التحقق من وجود المكتبة
-        const statusElement = document.getElementById('status');
-        const errorLog = document.getElementById('error-log');
-
-        async function initPi() {
+        // استخدام تأخير بسيط لضمان تهيئة المتصفح للمكتبة
+        setTimeout(async () => {
+            const statusElement = document.getElementById('status');
             try {
-                if (typeof Pi === 'undefined') {
-                    throw new Error("لم يتم تحميل مكتبة Pi. تأكد من فتح الموقع داخل Pi Browser.");
-                }
-
-                // 1. تهيئة المكتبة
-                await Pi.init({ version: "2.0", sandbox: true });
-                statusElement.innerText = "جاري التحقق من الهوية...";
-
-                // 2. طلب المصادقة (إصلاح طريقة استدعاء الصلاحيات)
-                const scopes = ['username', 'payments', 'wallet_address'];
-                const auth = await Pi.authenticate(scopes, onIncompletePaymentFound);
+                // يمكنك تغيير sandbox إلى true إذا كنت تريد التجربة لاحقاً
+                Pi.init({ version: "2.0", sandbox: false }); 
                 
-                // إذا نجح التحقق
-                document.getElementById('user-name').innerText = auth.user.username;
-                document.getElementById('loading-section').style.display = "none";
-                document.getElementById('payment-section').style.display = "block";
+                const auth = await Pi.authenticate(['username', 'payments', 'wallet_address'], onIncompletePaymentFound);
+                console.log("Authenticated User: ", auth.user.username);
+                
+                statusElement.innerText = "تم التحقق بنجاح! جاري نقلك للمتجر...";
+                
+                // التحويل إلى كارد بعد النجاح
+                setTimeout(() => {
+                    window.location.href = "https://mobiles-pi-store.carrd.com/?auth=success";
+                }, 1000);
 
             } catch (err) {
-                statusElement.innerText = "توقف الاتصال";
-                errorLog.innerText = "السبب: " + err.message;
+                statusElement.innerText = "حدث خطأ. يرجى التأكد من الرابط أو تحديث الصفحة.";
                 console.error(err);
             }
-        }
-
-        // 3. دالة الدفع (المُصلحة)
-        document.getElementById('pay-button').onclick = async function() {
-            try {
-                const payment = await Pi.createPayment({
-                    amount: 1.0,
-                    memo: "اختبار دفع - mobiles.pi",
-                    metadata: { orderId: "test_" + Date.now() },
-                }, {
-                    onReadyForServerApproval: (paymentId) => {
-                        console.log("بانتظار الموافقة اليدوية من Developer Portal:", paymentId);
-                        alert("المعاملة بدأت! يرجى الموافقة عليها من لوحة المطورين لتكتمل.");
-                    },
-                    onReadyForServerCompletion: (paymentId, txid) => {
-                        alert("نجحت المعاملة! سيتم تحويلك الآن للمتجر.");
-                        window.location.href = "https://mobiles-pi-store.carrd.com/?auth=success";
-                    },
-                    onCancel: (paymentId) => { alert("تم إلغاء الدفع."); },
-                    onError: (error, payment) => { alert("خطأ في الدفع: " + error.message); },
-                });
-            } catch (err) {
-                alert("فشل إنشاء الدفع: " + err.message);
-            }
-        };
+        }, 1000); // تأخير ثانية واحدة
 
         function onIncompletePaymentFound(payment) {
             console.log("Incomplete payment found", payment);
         };
-
-        // تشغيل الوظيفة عند التحميل
-        window.onload = initPi;
     </script>
 </body>
 </html>

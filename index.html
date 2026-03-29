@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mobiles Pi Store - تأمين الاتصال</title>
+    <title>Mobiles Pi Store - جاري التحويل</title>
     <script src="https://sdk.mine.pi/pi-sdk.js"></script>
     <style>
         body { 
@@ -20,52 +20,47 @@
             border-radius: 50%; 
             width: 50px; 
             height: 50px; 
-            animation: spin 2s linear infinite; 
+            animation: spin 1.5s linear infinite; 
             margin: 20px auto; 
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .status-text { font-size: 1.2rem; margin-top: 20px; padding: 0 20px; }
+        .status-text { font-size: 1.2rem; margin-top: 20px; }
     </style>
 </head>
 <body>
 
-    <h1>مرحباً بك في سوق الهواتف الآمن</h1>
+    <h1>سوق الهواتف الذكية</h1>
     <div class="loader"></div>
-    <p id="status" class="status-text">جاري تأمين اتصالك بشبكة باي...</p>
+    <p class="status-text">جاري تحويلك إلى المتجر الآن...</p>
 
     <script>
-        // دالة بدء المصادقة والتحويل
-        async function authenticateAndRedirect() {
-            const statusElement = document.getElementById('status');
-            
+        // هذه الدالة هي المسؤولة عن نقلك لكارد بشكل حتمي
+        function redirectToCarrd() {
+            window.location.href = "https://mobiles-pi-store.carrd.com/";
+        }
+
+        async function safeBridge() {
             try {
-                // 1. تهيئة المكتبة
-                await Pi.init({ version: "2.0", sandbox: false });
-
-                // 2. طلب المصادقة
-                const auth = await Pi.authenticate(['username', 'payments', 'wallet_address'], onIncompletePaymentFound);
-                
-                // 3. عرض رسالة النجاح
-                statusElement.innerText = "تم التحقق بنجاح! جاري نقلك للمتجر...";
-                
-                // 4. التحويل التلقائي إلى Carrd (النفق)
-                setTimeout(() => {
-                    window.location.href = "https://mobiles-pi-store.carrd.com/?auth=success";
-                }, 1000);
-
+                // نحاول الاتصال بشبكة Pi إذا كنا داخل متصفحها
+                if (typeof Pi !== 'undefined') {
+                    await Pi.init({ version: "2.0", sandbox: false });
+                    // طلب المصادقة بشكل صامت دون إيقاف العملية إذا تأخرت
+                    Pi.authenticate(['username', 'payments', 'wallet_address'], function(payment) {
+                        console.log("Incomplete payment", payment);
+                    }).catch(e => console.log("Auth skipped"));
+                }
             } catch (err) {
-                // في حال وجود خطأ أو فتح الموقع خارج Pi Browser
-                statusElement.innerText = "يرجى فتح الموقع من داخل تطبيق Pi Browser للمتابعة.";
-                console.error("Pi SDK Error:", err);
+                // تجاهل أي خطأ يحدث (مثل عدم وجود المكتبة في كروم)
+                console.log("Not in Pi Browser, proceeding to store...");
+            } finally {
+                // الكلمة السحرية (finally): تعني "افعل هذا دائماً مهما حدث"
+                // تحويل للمتجر بعد ثانية واحدة فقط
+                setTimeout(redirectToCarrd, 1000);
             }
         }
 
-        function onIncompletePaymentFound(payment) {
-            console.log("Incomplete payment found", payment);
-        };
-
-        // تشغيل الوظيفة فور تحميل الصفحة
-        window.onload = authenticateAndRedirect;
+        // تشغيل العملية فور فتح الصفحة
+        window.onload = safeBridge;
     </script>
 </body>
 </html>

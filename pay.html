@@ -8,11 +8,12 @@
     <style>
         body { background-color: #6700eb; color: white; text-align: center; font-family: Arial, sans-serif; padding: 40px; margin: 0; }
         .pay-card { background: white; color: #333; border-radius: 20px; padding: 30px; max-width: 400px; margin: auto; box-shadow: 0 10px 20px rgba(0,0,0,0.2); }
-        .btn-confirm { background: #00e676; color: white; border: none; padding: 15px 30px; border-radius: 10px; font-weight: bold; cursor: pointer; width: 100%; font-size: 1.2rem; transition: 0.3s; }
+        .btn-confirm { background: #00e676; color: white; border: none; padding: 15px 30px; border-radius: 10px; font-weight: bold; cursor: pointer; width: 100%; font-size: 1.2rem; transition: 0.3s; display: none; } /* يظهر بعد المصادقة */
         .btn-confirm:active { background: #00c853; transform: scale(0.98); }
         #amount-display { color: #6700eb; font-size: 2.5rem; margin: 15px 0; }
-        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #ffcc00; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; display: none; margin: 10px auto; }
+        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #ffcc00; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        #status-text { font-size: 0.9rem; margin-top: 15px; color: #666; }
     </style>
 </head>
 <body>
@@ -20,75 +21,76 @@
         <h2>تأكيد الطلب</h2>
         <p>أنت على وشك شراء هاتف ذكي</p>
         <h1 id="amount-display">...</h1>
-        <div id="loader" class="loader"></div>
+        <div id="loading-spinner" class="loader"></div>
         <button id="pay-button" class="btn-confirm">دفع الآن بواسطة Pi</button>
-        <p id="status-msg" style="color: #666; font-size: 0.9rem; margin-top: 15px;">يرجى عدم إغلاق الصفحة أثناء المعالجة.</p>
+        <p id="status-text">جاري الاتصال بشبكة Pi...</p>
     </div>
 
     <script>
-        // 1. قراءة السعر من الرابط
         const urlParams = new URLSearchParams(window.location.search);
         const price = urlParams.get('price') || '1.0';
-        document.getElementById('amount-display').innerText = "Pi " + price;
+        document.getElementById('amount-display').innerText = price + " Pi";
 
         const payBtn = document.getElementById('pay-button');
-        const loader = document.getElementById('loader');
-        const statusMsg = document.getElementById('status-msg');
+        const spinner = document.getElementById('loading-spinner');
+        const statusText = document.getElementById('status-text');
 
-        async function initPi() {
+        async function startSystem() {
             try {
-                // 2. تهيئة المكتبة
+                // تهيئة المكتبة
                 await Pi.init({ version: "2.0", sandbox: false });
                 
-                // 3. المصادقة الإجبارية لتفعيل المحفظة (هذا هو الجزء الذي كان ينقصك)
-                await Pi.authenticate(['payments', 'wallet_address'], onIncompletePaymentFound);
+                // المصادقة التلقائية لإزالة التحذير الأحمر وتفعيل الزر
+                const auth = await Pi.authenticate(['payments', 'wallet_address'], onIncompletePaymentFound);
+                
+                // إذا وصلنا هنا، يعني المتصفح استجاب والمصادقة تمت
+                spinner.style.display = 'none';
+                payBtn.style.display = 'block';
+                statusText.innerText = "جاهز لإتمام العملية الآمنة";
+                statusText.style.color = "green";
 
-                // 4. برمجة الزر الأخضر
                 payBtn.onclick = async () => {
-                    payBtn.style.display = 'none';
-                    loader.style.display = 'block';
-                    statusMsg.innerText = "جاري فتح المحفظة...";
-
+                    payBtn.disabled = true;
+                    statusText.innerText = "جاري فتح المحفظة، يرجى عدم غلق الصفحة...";
+                    
                     try {
                         const payment = await Pi.createPayment({
                             amount: parseFloat(price),
                             memo: "شراء هاتف من Mobiles Pi Store",
                             metadata: { orderId: "order_" + Date.now() },
                         }, {
-                            onReadyForServerApproval: (id) => console.log("Approved ID: ", id),
+                            onReadyForServerApproval: (id) => console.log("Approved", id),
                             onReadyForServerCompletion: (id, txid) => {
-                                statusMsg.innerText = "تم الدفع بنجاح! جاري العودة للمتجر...";
+                                statusText.innerText = "تم الدفع بنجاح! جاري توجيهك...";
                                 setTimeout(() => {
-                                    window.location.href = "https://mobiles-pi-store.carrd.com/#success";
-                                }, 2000);
+                                    window.location.href = "https://mobiles-pi-store.carrd.co/#success";
+                                }, 2500);
                             },
                             onCancel: (id) => {
-                                payBtn.style.display = 'block';
-                                loader.style.display = 'none';
-                                statusMsg.innerText = "تم إلغاء عملية الدفع.";
+                                payBtn.disabled = false;
+                                statusText.innerText = "تم إلغاء الدفع.";
                             },
                             onError: (error) => {
-                                payBtn.style.display = 'block';
-                                loader.style.display = 'none';
-                                alert("خطأ: " + error.message);
+                                payBtn.disabled = false;
+                                alert("خطأ في الدفع: " + error.message);
                             }
                         });
                     } catch (e) {
-                        payBtn.style.display = 'block';
-                        loader.style.display = 'none';
-                        alert("حدث خطأ تقني، يرجى المحاولة لاحقاً.");
+                        payBtn.disabled = false;
+                        alert("تعذر الاتصال بالمحفظة.");
                     }
                 };
 
             } catch (err) {
-                statusMsg.style.color = "red";
-                statusMsg.innerText = "تأكد من فتح الرابط داخل Pi Browser.";
+                spinner.style.display = 'none';
+                statusText.innerText = "تأكد من فتح الرابط داخل Pi Browser للمتابعة.";
+                statusText.style.color = "red";
             }
         }
 
-        function onIncompletePaymentFound(payment) { console.log("Incomplete payment found", payment); };
+        function onIncompletePaymentFound(payment) { console.log("Payment pending", payment); }
 
-        window.onload = initPi;
+        window.onload = startSystem;
     </script>
 </body>
 </html>

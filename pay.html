@@ -54,10 +54,9 @@
 
         async function initPiApp() {
             try {
-                // 1. تهيئة الـ SDK للعمل في بيئة 2026
-                await Pi.init({ version: "2.0", sandbox: false });
+                // تعديل: القيمة true ضرورية لأن تطبيقك حالياً في وضع Testnet
+                await Pi.init({ version: "1.5", sandbox: true });
                 
-                // 2. المصادقة لفتح الجلسة وإخفاء التحذيرات الحمراء
                 const scopes = ['payments', 'wallet_address', 'username'];
                 const auth = await Pi.authenticate(scopes, onIncompletePaymentFound);
                 
@@ -66,7 +65,7 @@
                 statusText.innerText = `مرحباً ${auth.user.username}، جاهز للدفع`;
                 statusText.style.color = "green";
 
-                payBtn.onclick = async () => {
+                payBtn.onclick = () => {
                     handlePayment(auth.user.username);
                 };
 
@@ -74,7 +73,7 @@
                 spinner.style.display = 'none';
                 statusText.innerText = "يرجى فتح التطبيق من داخل Pi Browser الرسمي.";
                 statusText.style.color = "red";
-                console.error(err);
+                console.error("Initialization Error:", err);
             }
         }
 
@@ -85,58 +84,11 @@
             try {
                 const payment = await Pi.createPayment({
                     amount: parseFloat(price),
-                    memo: `Escrow: شراء هاتف ذكي لـ ${username}`,
+                    memo: `شراء هاتف من متجر Mobiles Pi - المستخدم: ${username}`,
                     metadata: { 
                         orderId: "MOB-" + Date.now(),
-                        type: "escrow_deal",
-                        platform: "Mobiles-Pi-Store"
+                        type: "escrow_deal"
                     },
                 }, {
                     onReadyForServerApproval: (paymentId) => {
-                        statusText.innerText = "جاري توثيق المعاملة في نظام PiTrust...";
-                        // إرسال طلب الموافقة لسيرفر البايثون الخاص بك
-                        return fetch('https://your-python-backend.herokuapp.com/approve', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ paymentId })
-                        });
-                    },
-                    onReadyForServerCompletion: (paymentId, txid) => {
-                        statusText.innerText = "تم حجز المبلغ بنجاح! جاري التوجيه...";
-                        // إرسال إشعار الإكمال للسيرفر
-                        fetch('https://your-python-backend.herokuapp.com/complete', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ paymentId, txid })
-                        });
-
-                        setTimeout(() => {
-                            window.location.href = "https://mobiles-pi-store.carrd.co/#success";
-                        }, 2000);
-                    },
-                    onCancel: (paymentId) => {
-                        payBtn.disabled = false;
-                        statusText.innerText = "تم إلغاء العملية من قبل المستخدم.";
-                        statusText.style.color = "orange";
-                    },
-                    onError: (error, payment) => {
-                        payBtn.disabled = false;
-                        statusText.innerText = "فشل في إتمام المعاملة، حاول مجدداً.";
-                        statusText.style.color = "red";
-                    }
-                });
-            } catch (e) {
-                payBtn.disabled = false;
-                alert("حدث خطأ تقني في المحفظة.");
-            }
-        }
-
-        function onIncompletePaymentFound(payment) {
-            // منطق التعامل مع الدفعات العالقة لإعادة المحاولة تلقائياً
-            console.log("Incomplete payment found", payment);
-        }
-
-        window.onload = initPiApp;
-    </script>
-</body>
-</html>
+                        statusText.innerText

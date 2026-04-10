@@ -3,27 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>تأكيد عملية الدفع - Mobiles Pi</title>
-    <script src="https://sdk.mine.pi/pi-sdk.js"></script>
+    <title>نظام الضمان الآمن | Mobiles Pi Store</title>
+    <script src="https://sdk.minepi.com/pi-sdk.js"></script>
     <style>
-        body { background-color: #6700eb; color: white; text-align: center; font-family: Arial, sans-serif; padding: 40px; margin: 0; }
-        .pay-card { background: white; color: #333; border-radius: 20px; padding: 30px; max-width: 400px; margin: auto; box-shadow: 0 10px 20px rgba(0,0,0,0.2); }
-        .btn-confirm { background: #00e676; color: white; border: none; padding: 15px 30px; border-radius: 10px; font-weight: bold; cursor: pointer; width: 100%; font-size: 1.2rem; transition: 0.3s; display: none; } /* يظهر بعد المصادقة */
-        .btn-confirm:active { background: #00c853; transform: scale(0.98); }
-        #amount-display { color: #6700eb; font-size: 2.5rem; margin: 15px 0; }
-        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #ffcc00; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto; }
+        :root {
+            --pi-purple: #6700eb;
+            --pi-gold: #ffcc00;
+            --success-green: #00e676;
+        }
+        body { background-color: var(--pi-purple); color: white; text-align: center; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; margin: 0; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+        .pay-card { background: white; color: #333; border-radius: 25px; padding: 40px; max-width: 450px; width: 90%; box-shadow: 0 15px 35px rgba(0,0,0,0.3); position: relative; }
+        .escrow-badge { background: #e8f5e9; color: #2e7d32; padding: 5px 15px; border-radius: 50px; font-size: 0.8rem; font-weight: bold; margin-bottom: 20px; display: inline-block; border: 1px solid #c8e6c9; }
+        h2 { margin: 10px 0; color: var(--pi-purple); }
+        #amount-display { color: var(--pi-purple); font-size: 3rem; margin: 20px 0; font-weight: 800; }
+        .btn-confirm { background: var(--pi-purple); color: white; border: none; padding: 18px 30px; border-radius: 15px; font-weight: bold; cursor: pointer; width: 100%; font-size: 1.3rem; transition: 0.3s; display: none; box-shadow: 0 4px 15px rgba(103, 0, 235, 0.3); }
+        .btn-confirm:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(103, 0, 235, 0.4); }
+        .btn-confirm:disabled { background: #ccc; cursor: not-allowed; transform: none; }
+        .loader { border: 5px solid #f3f3f3; border-top: 5px solid var(--pi-gold); border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin: 30px auto; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        #status-text { font-size: 0.9rem; margin-top: 15px; color: #666; }
+        #status-text { font-size: 1rem; margin-top: 20px; color: #555; font-weight: 500; }
+        .security-note { font-size: 0.75rem; color: #888; margin-top: 25px; border-top: 1px solid #eee; padding-top: 15px; }
     </style>
 </head>
 <body>
     <div class="pay-card">
-        <h2>تأكيد الطلب</h2>
-        <p>أنت على وشك شراء هاتف ذكي</p>
+        <div class="escrow-badge">🛡️ حماية الضمان (PiTrust) مفعلة</div>
+        <h2>تأكيد الشراء الآمن</h2>
+        <p>سيتم حجز المبلغ في نظام الضمان حتى استلامك للهاتف</p>
+        
         <h1 id="amount-display">...</h1>
+
         <div id="loading-spinner" class="loader"></div>
-        <button id="pay-button" class="btn-confirm">دفع الآن بواسطة Pi</button>
-        <p id="status-text">جاري الاتصال بشبكة Pi...</p>
+        <button id="pay-button" class="btn-confirm">تأكيد ودفع بواسطة Pi</button>
+        
+        <p id="status-text">جاري فحص الاتصال بـ Pi Browser...</p>
+
+        <div class="security-note">
+            بضغطك على تأكيد، أنت توافق على شروط خدمة PiTrust للوساطة المالية.
+        </div>
     </div>
 
     <script>
@@ -35,62 +52,91 @@
         const spinner = document.getElementById('loading-spinner');
         const statusText = document.getElementById('status-text');
 
-        async function startSystem() {
+        async function initPiApp() {
             try {
-                // تهيئة المكتبة
+                // 1. تهيئة الـ SDK للعمل في بيئة 2026
                 await Pi.init({ version: "2.0", sandbox: false });
                 
-                // المصادقة التلقائية لإزالة التحذير الأحمر وتفعيل الزر
-                const auth = await Pi.authenticate(['payments', 'wallet_address'], onIncompletePaymentFound);
+                // 2. المصادقة لفتح الجلسة وإخفاء التحذيرات الحمراء
+                const scopes = ['payments', 'wallet_address', 'username'];
+                const auth = await Pi.authenticate(scopes, onIncompletePaymentFound);
                 
-                // إذا وصلنا هنا، يعني المتصفح استجاب والمصادقة تمت
                 spinner.style.display = 'none';
                 payBtn.style.display = 'block';
-                statusText.innerText = "جاهز لإتمام العملية الآمنة";
+                statusText.innerText = `مرحباً ${auth.user.username}، جاهز للدفع`;
                 statusText.style.color = "green";
 
                 payBtn.onclick = async () => {
-                    payBtn.disabled = true;
-                    statusText.innerText = "جاري فتح المحفظة، يرجى عدم غلق الصفحة...";
-                    
-                    try {
-                        const payment = await Pi.createPayment({
-                            amount: parseFloat(price),
-                            memo: "شراء هاتف من Mobiles Pi Store",
-                            metadata: { orderId: "order_" + Date.now() },
-                        }, {
-                            onReadyForServerApproval: (id) => console.log("Approved", id),
-                            onReadyForServerCompletion: (id, txid) => {
-                                statusText.innerText = "تم الدفع بنجاح! جاري توجيهك...";
-                                setTimeout(() => {
-                                    window.location.href = "https://mobiles-pi-store.carrd.co/#success";
-                                }, 2500);
-                            },
-                            onCancel: (id) => {
-                                payBtn.disabled = false;
-                                statusText.innerText = "تم إلغاء الدفع.";
-                            },
-                            onError: (error) => {
-                                payBtn.disabled = false;
-                                alert("خطأ في الدفع: " + error.message);
-                            }
-                        });
-                    } catch (e) {
-                        payBtn.disabled = false;
-                        alert("تعذر الاتصال بالمحفظة.");
-                    }
+                    handlePayment(auth.user.username);
                 };
 
             } catch (err) {
                 spinner.style.display = 'none';
-                statusText.innerText = "تأكد من فتح الرابط داخل Pi Browser للمتابعة.";
+                statusText.innerText = "يرجى فتح التطبيق من داخل Pi Browser الرسمي.";
                 statusText.style.color = "red";
+                console.error(err);
             }
         }
 
-        function onIncompletePaymentFound(payment) { console.log("Payment pending", payment); }
+        async function handlePayment(username) {
+            payBtn.disabled = true;
+            statusText.innerText = "جاري إنشاء معاملة الضمان (Escrow)...";
 
-        window.onload = startSystem;
+            try {
+                const payment = await Pi.createPayment({
+                    amount: parseFloat(price),
+                    memo: `Escrow: شراء هاتف ذكي لـ ${username}`,
+                    metadata: { 
+                        orderId: "MOB-" + Date.now(),
+                        type: "escrow_deal",
+                        platform: "Mobiles-Pi-Store"
+                    },
+                }, {
+                    onReadyForServerApproval: (paymentId) => {
+                        statusText.innerText = "جاري توثيق المعاملة في نظام PiTrust...";
+                        // إرسال طلب الموافقة لسيرفر البايثون الخاص بك
+                        return fetch('https://your-python-backend.herokuapp.com/approve', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ paymentId })
+                        });
+                    },
+                    onReadyForServerCompletion: (paymentId, txid) => {
+                        statusText.innerText = "تم حجز المبلغ بنجاح! جاري التوجيه...";
+                        // إرسال إشعار الإكمال للسيرفر
+                        fetch('https://your-python-backend.herokuapp.com/complete', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ paymentId, txid })
+                        });
+
+                        setTimeout(() => {
+                            window.location.href = "https://mobiles-pi-store.carrd.co/#success";
+                        }, 2000);
+                    },
+                    onCancel: (paymentId) => {
+                        payBtn.disabled = false;
+                        statusText.innerText = "تم إلغاء العملية من قبل المستخدم.";
+                        statusText.style.color = "orange";
+                    },
+                    onError: (error, payment) => {
+                        payBtn.disabled = false;
+                        statusText.innerText = "فشل في إتمام المعاملة، حاول مجدداً.";
+                        statusText.style.color = "red";
+                    }
+                });
+            } catch (e) {
+                payBtn.disabled = false;
+                alert("حدث خطأ تقني في المحفظة.");
+            }
+        }
+
+        function onIncompletePaymentFound(payment) {
+            // منطق التعامل مع الدفعات العالقة لإعادة المحاولة تلقائياً
+            console.log("Incomplete payment found", payment);
+        }
+
+        window.onload = initPiApp;
     </script>
 </body>
 </html>

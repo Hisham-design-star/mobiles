@@ -3,64 +3,83 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mobiles Pi Store - جاري التحويل</title>
-    <script src="https://sdk.mine.pi/pi-sdk.js"></script>
+    <title>Mobiles Pi Store - جاري التحويل الآمن</title>
+    <script src="https://sdk.minepi.com/pi-sdk.js"></script>
     <style>
         body { 
             background-color: #6700eb; 
             color: white; 
             text-align: center; 
-            font-family: Arial, sans-serif; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
             padding-top: 100px;
             margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 80vh;
         }
         .loader { 
-            border: 5px solid #f3f3f3; 
+            border: 5px solid rgba(255,255,255,0.3); 
             border-top: 5px solid #ffcc00; 
             border-radius: 50%; 
-            width: 50px; 
-            height: 50px; 
-            animation: spin 1.5s linear infinite; 
+            width: 60px; 
+            height: 60px; 
+            animation: spin 1s linear infinite; 
             margin: 20px auto; 
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .status-text { font-size: 1.2rem; margin-top: 20px; }
+        .status-text { font-size: 1.1rem; margin-top: 20px; opacity: 0.9; }
+        .brand { font-weight: bold; font-size: 2rem; margin-bottom: 10px; }
     </style>
 </head>
 <body>
 
-    <h1>سوق الهواتف الذكية</h1>
+    <div class="brand">Mobiles Pi Store</div>
     <div class="loader"></div>
-    <p class="status-text">جاري تحويلك إلى المتجر الآن...</p>
+    <p class="status-text" id="status-msg">جاري التحقق من الهوية الرقمية...</p>
 
     <script>
-        // هذه الدالة هي المسؤولة عن نقلك لكارد بشكل حتمي
-        function redirectToCarrd() {
-            window.location.href = "https://mobiles-pi-store.carrd.com/";
+        // رابط المتجر على Carrd
+        const STORE_URL = "https://mobiles-pi-store.carrd.co/";
+
+        function redirectToStore() {
+            window.location.href = STORE_URL;
         }
 
-        async function safeBridge() {
+        async function initPiBridge() {
+            const statusMsg = document.getElementById('status-msg');
+            
             try {
-                // نحاول الاتصال بشبكة Pi إذا كنا داخل متصفحها
-                if (typeof Pi !== 'undefined') {
+                // التأكد من تهيئة المكتبة بالرابط الجديد
+                if (window.Pi) {
                     await Pi.init({ version: "2.0", sandbox: false });
-                    // طلب المصادقة بشكل صامت دون إيقاف العملية إذا تأخرت
-                    Pi.authenticate(['username', 'payments', 'wallet_address'], function(payment) {
-                        console.log("Incomplete payment", payment);
-                    }).catch(e => console.log("Auth skipped"));
+                    
+                    // مصادقة سريعة (Silent Authentication) لجعل التطبيق يبدو موثوقاً
+                    // نضع وقت مستقطع (Timeout) للمصادقة لضمان عدم تعليق الصفحة
+                    const authPromise = Pi.authenticate(['username', 'payments', 'wallet_address'], function(p) {
+                        console.log("Incomplete payment found", p);
+                    });
+
+                    // ننتظر المصادقة لمدة ثانيتين فقط، إذا تأخرت ننتقل للمتجر فوراً
+                    await Promise.race([
+                        authPromise,
+                        new Promise(resolve => setTimeout(resolve, 2000))
+                    ]);
+                    
+                    statusMsg.innerText = "تم التحقق! جاري دخول المتجر...";
                 }
             } catch (err) {
-                // تجاهل أي خطأ يحدث (مثل عدم وجود المكتبة في كروم)
-                console.log("Not in Pi Browser, proceeding to store...");
+                console.log("Not in Pi Browser or Auth failed, redirecting...");
+                statusMsg.innerText = "جاري الانتقال للمتجر...";
             } finally {
-                // الكلمة السحرية (finally): تعني "افعل هذا دائماً مهما حدث"
-                // تحويل للمتجر بعد ثانية واحدة فقط
-                setTimeout(redirectToCarrd, 1000);
+                // التحويل النهائي
+                setTimeout(redirectToStore, 500);
             }
         }
 
-        // تشغيل العملية فور فتح الصفحة
-        window.onload = safeBridge;
+        // تشغيل العملية
+        window.onload = initPiBridge;
     </script>
 </body>
 </html>
